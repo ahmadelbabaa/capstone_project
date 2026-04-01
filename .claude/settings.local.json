@@ -5,7 +5,29 @@
       "Read(//usr/local/**)",
       "Bash(cmd.exe /c where python)",
       "Bash(py -c \":*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(py -c \"import pandas as pd, os; files = [f for r,d,files in os.walk\\(''c:/Users/User/OneDrive/Capstone Project/data''\\) for f in files if f.endswith\\(''.parquet''\\)][:5]; print\\(''\\\\n''.join\\(files\\)\\)\")",
+      "Bash(py -c \"import pandas as pd; df = pd.read_parquet\\(''c:/Users/User/OneDrive/Capstone Project/data/feature_engineering/defensive_pressure_features.parquet''\\); print\\(''defensive_pressure_features''\\); print\\(f''Columns \\({len\\(df.columns\\)}\\): {df.columns.tolist\\(\\)}''\\); print\\(f''Shape: {df.shape}''\\); print\\(df.dtypes\\)\")",
+      "Bash(py -c \"import pandas as pd; df = pd.read_parquet\\(''c:/Users/User/OneDrive/Capstone Project/data/feature_engineering/goal_kick_features.parquet''\\); print\\(''goal_kick_features''\\); print\\(f''Columns \\({len\\(df.columns\\)}\\): {df.columns.tolist\\(\\)}''\\); print\\(f''Shape: {df.shape}''\\); print\\(df.dtypes\\)\")",
+      "Bash(py -c \"import pandas as pd; df = pd.read_parquet\\(''c:/Users/User/OneDrive/Capstone Project/data/feature_engineering/model_features_80_20.parquet''\\); print\\(''model_features_80_20''\\); print\\(f''Columns \\({len\\(df.columns\\)}\\): {df.columns.tolist\\(\\)}''\\); print\\(f''Shape: {df.shape}''\\); print\\(df.dtypes\\)\")",
+      "Bash(py -c \"import pandas as pd; df = pd.read_parquet\\(''c:/Users/User/OneDrive/Capstone Project/data/feature_engineering/obv_features.parquet''\\); print\\(''obv_features''\\); print\\(f''Columns \\({len\\(df.columns\\)}\\): {df.columns.tolist\\(\\)}''\\); print\\(f''Shape: {df.shape}''\\); print\\(df.dtypes\\)\")",
+      "Bash(py -c \"import pandas as pd; df = pd.read_parquet\\(''c:/Users/User/OneDrive/Capstone Project/data/feature_engineering/progression_features.parquet''\\); print\\(''progression_features''\\); print\\(f''Columns \\({len\\(df.columns\\)}\\): {df.columns.tolist\\(\\)}''\\); print\\(f''Shape: {df.shape}''\\); print\\(df.dtypes\\)\")",
+      "Bash(py -c \"import pandas as pd; df = pd.read_parquet\\(''c:/Users/User/OneDrive/Capstone Project/data/merged_j1_2024/match_1410827.parquet''\\); print\\(''Sample merged match file \\(match_1410827\\)''\\); print\\(f''Columns \\({len\\(df.columns\\)}\\): {df.columns.tolist\\(\\)}''\\); print\\(f''Shape: {df.shape}''\\); print\\(df.dtypes\\)\")",
+      "Bash(python3 -c \"import pandas as pd; df = pd.read_parquet\\(''C:/Users/User/OneDrive/Capstone Project/data/feature_engineering/model_features_80_20.parquet''\\); print\\(''Shape:'', df.shape\\); print\\(''Columns:'', list\\(df.columns\\)\\); print\\(df.dtypes.to_string\\(\\)\\)\")",
+      "Bash(py --version)",
+      "Bash(py -c \"import pandas as pd; df = pd.read_parquet\\(''C:/Users/User/OneDrive/Capstone Project/data/feature_engineering/model_features_80_20.parquet''\\); print\\(''Shape:'', df.shape\\); print\\(''Columns:'', list\\(df.columns\\)\\); print\\(df.dtypes.to_string\\(\\)\\)\")",
+      "WebFetch(domain:socceraction.readthedocs.io)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch",
+      "WebFetch(domain:www.ijcai.org)",
+      "WebFetch(domain:arxiv.org)",
+      "Bash(python -c \":*)",
+      "Bash(python3 -c \":*)",
+      "Bash(where python:*)",
+      "Bash(where python3:*)",
+      "Bash(ls /usr/bin/python*)",
+      "Bash(ls /usr/local/bin/python*)",
+      "Bash(xargs wc:*)"
     ]
   }
 }
