@@ -16,7 +16,7 @@ st.set_page_config(
 
 st.sidebar.title("⚽ J1 League 2024")
 st.sidebar.caption(
-    "Ridge Regression model predicting goal kick build-up quality (OBV) "
+    "Gradient Boosting model predicting goal kick build-up quality (Sequence Progression Value) "
     "from defensive pressing structures — 376 matches, 5,113 sequences."
 )
 st.sidebar.markdown("---")
@@ -25,8 +25,8 @@ st.title("Goal Kick Pressing Analysis")
 st.markdown(
     """
     This app demonstrates a machine learning model trained on J1 League 2024 data
-    to predict **build-up quality** (measured by [On-Ball Value](https://statsbomb.com/articles/soccer/introducing-on-ball-value-obv/))
-    in the **final 20%** of goal kick sequences, using tracking and event data from the first 80%.
+    to predict **build-up quality** (measured by a custom **Sequence Progression Value** metric
+    inspired by VAEP) in the **final 20%** of goal kick sequences, using tracking and event data from the first 80%.
 
     **Navigate using the sidebar:**
     - **Overview** — Dataset statistics and model performance

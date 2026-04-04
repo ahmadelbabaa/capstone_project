@@ -33,13 +33,17 @@ def load_sequence_metadata() -> pd.DataFrame:
     table = pq.read_table(SEQUENCES_FILE, columns=cols)
     meta = table.to_pandas().drop_duplicates("goal_kick_id").reset_index(drop=True)
 
-    # Enrich with OBV and sequence-level info from goal_kick_features
+    # Enrich with sequence-level info from goal_kick_features
     gk = load_goal_kick_features()[
         ["goal_kick_id", "obv_total_seq", "final_third_entry", "period",
          "n_progressive_passes", "n_progressive_carries",
          "obv_for_seq", "obv_against_seq"]
     ]
     meta = meta.merge(gk, on="goal_kick_id", how="left")
+
+    # Add prog_value_20 from model features
+    mf_prog = pd.read_parquet(MODEL_FEATURES, columns=["goal_kick_id", "prog_value_20"])
+    meta = meta.merge(mf_prog, on="goal_kick_id", how="left")
     return meta.sort_values("goal_kick_id").reset_index(drop=True)
 
 

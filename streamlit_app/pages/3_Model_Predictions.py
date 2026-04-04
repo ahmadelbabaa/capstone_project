@@ -14,7 +14,7 @@ from utils.model_inference import load_model, predict_batch, predict_single, FEA
 
 st.set_page_config(page_title="Model Predictions", layout="wide")
 st.title("Model Predictions")
-st.caption("Ridge Regression — OBV in the final 20% of goal kick build-up sequences")
+st.caption("Gradient Boosting — Sequence Progression Value of goal kick build-up sequences")
 
 # ── Load data ─────────────────────────────────────────────────────────────────
 mf     = load_model_features()
@@ -42,7 +42,7 @@ def seq_label(row):
     opponent = row["away_team"] if row["possession_team_name"] == row["home_team"] else row["home_team"]
     return (
         f"#{int(row['goal_kick_id'])} — {row['possession_team_name']} vs {opponent} "
-        f"| OBV remaining: {row['obv_remaining']:.4f}"
+        f"| Progression value: {row['prog_value_20']:.4f}"
     )
 
 filtered["_label"] = filtered.apply(seq_label, axis=1)
@@ -71,8 +71,8 @@ predicted = result["predicted"]
 residual  = result["residual"]
 
 c1, c2, c3 = st.columns(3)
-c1.metric("Actual OBV (final 20%)", f"{actual:.4f}")
-c2.metric("Predicted OBV", f"{predicted:.4f}", delta=f"{predicted - actual:+.4f}")
+c1.metric("Actual Progression Value", f"{actual:.4f}")
+c2.metric("Predicted Progression Value", f"{predicted:.4f}", delta=f"{predicted - actual:+.4f}")
 c3.metric("Residual (actual − predicted)", f"{residual:+.4f}")
 
 if residual > 0.01:
@@ -90,15 +90,11 @@ else:
 
 st.markdown("---")
 
-# ── Section 2: Feature contributions waterfall ────────────────────────────────
-st.subheader("Feature Contributions")
-st.caption(
-    "Each bar shows how much a feature pushed the prediction up (blue) or down (red). "
-    "Raw feature value shown in parentheses. Sum + intercept = predicted OBV."
-)
+# ── Section 2: Feature importance ─────────────────────────────────────────────
+st.subheader("Feature Importance")
 
-contributions = result["feature_contributions"].copy()
-intercept     = bundle["model"].intercept_
+contributions    = result["feature_contributions"].copy()
+is_directional   = result.get("is_directional", False)
 
 # Sort by absolute value descending
 contributions = contributions.reindex(
@@ -112,38 +108,61 @@ labels = [
     for f in contributions.index
 ]
 
-# Waterfall
-measure = ["relative"] * len(contributions) + ["total"]
-x_labels = labels + ["<b>Predicted OBV</b>"]
-y_values = list(contributions.values) + [intercept]
+if is_directional:
+    st.caption(
+        "Each bar shows how much a feature pushed the prediction up (blue) or down (red). "
+        "Raw feature value shown in parentheses."
+    )
+    measure  = ["relative"] * len(contributions) + ["total"]
+    x_labels = labels + ["<b>Predicted Progression Value</b>"]
+    y_values = list(contributions.values) + [bundle["model"].intercept_]
 
-colors = [
-    "#3a86ff" if v >= 0 else "#ff006e"
-    for v in contributions.values
-] + ["#ffbe0b"]
-
-fig_wf = go.Figure(go.Waterfall(
-    orientation="v",
-    measure=measure,
-    x=x_labels,
-    y=y_values,
-    connector=dict(line=dict(color="grey", width=0.5)),
-    increasing=dict(marker=dict(color="#3a86ff")),
-    decreasing=dict(marker=dict(color="#ff006e")),
-    totals=dict(marker=dict(color="#ffbe0b")),
-    texttemplate="%{y:.4f}",
-    textposition="outside",
-))
-fig_wf.update_layout(
-    paper_bgcolor="#1a1a2e", plot_bgcolor="#12122a",
-    font_color="white", title_font_color="white",
-    height=450,
-    xaxis=dict(tickfont=dict(size=10)),
-    yaxis=dict(title="Contribution to Predicted OBV"),
-    showlegend=False,
-    margin=dict(t=30, b=20),
-)
-st.plotly_chart(fig_wf, use_container_width=True)
+    fig_wf = go.Figure(go.Waterfall(
+        orientation="v",
+        measure=measure,
+        x=x_labels,
+        y=y_values,
+        connector=dict(line=dict(color="grey", width=0.5)),
+        increasing=dict(marker=dict(color="#3a86ff")),
+        decreasing=dict(marker=dict(color="#ff006e")),
+        totals=dict(marker=dict(color="#ffbe0b")),
+        texttemplate="%{y:.4f}",
+        textposition="outside",
+    ))
+    fig_wf.update_layout(
+        paper_bgcolor="#1a1a2e", plot_bgcolor="#12122a",
+        font_color="white", title_font_color="white",
+        height=450,
+        xaxis=dict(tickfont=dict(size=10)),
+        yaxis=dict(title="Contribution to Predicted Progression Value"),
+        showlegend=False,
+        margin=dict(t=30, b=20),
+    )
+    st.plotly_chart(fig_wf, use_container_width=True)
+else:
+    st.caption(
+        "Relative importance of each feature in the model (larger = more influential). "
+        "Raw feature value shown in parentheses."
+    )
+    bar_colors = ["#3a86ff"] * len(contributions)
+    fig_wf = go.Figure(go.Bar(
+        x=list(contributions.values),
+        y=labels,
+        orientation="h",
+        marker_color=bar_colors,
+        texttemplate="%{x:.4f}",
+        textposition="outside",
+    ))
+    fig_wf.update_layout(
+        paper_bgcolor="#1a1a2e", plot_bgcolor="#12122a",
+        font_color="white", title_font_color="white",
+        height=450,
+        xaxis=dict(title="Feature Importance"),
+        yaxis=dict(autorange="reversed", tickfont=dict(size=10)),
+        showlegend=False,
+        margin=dict(t=30, b=20, l=220),
+    )
+    st.plotly_chart(fig_wf, use_container_width=True)
 
 st.markdown("---")
 
@@ -176,9 +195,13 @@ with c1:
     st.dataframe(table_df, use_container_width=True, height=420)
 
 with c2:
-    # Radar chart: top 8 features by abs coefficient, z-scores clipped to ±3
-    coefs = pd.Series(bundle["model"].coef_, index=feature_cols)
-    top8  = coefs.abs().nlargest(8).index.tolist()
+    # Radar chart: top 8 features by importance, z-scores clipped to ±3
+    model = bundle["model"]
+    if hasattr(model, "coef_"):
+        importances = pd.Series(model.coef_, index=feature_cols)
+    else:
+        importances = pd.Series(model.feature_importances_, index=feature_cols)
+    top8  = importances.abs().nlargest(8).index.tolist()
     z_scores = {}
     for f in top8:
         val = selected_row.get(f, float("nan"))
@@ -224,15 +247,15 @@ st.markdown("---")
 st.subheader("Position in Full Dataset")
 
 fig_scatter = px.scatter(
-    mf_pred, x="obv_remaining", y="predicted_obv",
+    mf_pred, x="prog_value_20", y="predicted_progression",
     color="possession_team_name",
     opacity=0.4,
-    labels={"obv_remaining": "Actual OBV", "predicted_obv": "Predicted OBV"},
+    labels={"prog_value_20": "Actual Progression Value", "predicted_progression": "Predicted Progression Value"},
     title="All Predictions — Selected Sequence Highlighted",
     hover_data=["goal_kick_id", "possession_team_name"],
 )
 # Perfect prediction diagonal
-rng = [mf_pred["obv_remaining"].min(), mf_pred["obv_remaining"].max()]
+rng = [mf_pred["prog_value_20"].min(), mf_pred["prog_value_20"].max()]
 fig_scatter.add_trace(go.Scatter(
     x=rng, y=rng, mode="lines",
     line=dict(color="grey", dash="dash"), name="Perfect", showlegend=False,
@@ -254,7 +277,7 @@ st.plotly_chart(fig_scatter, use_container_width=True)
 
 with st.expander("All predictions table"):
     display_cols = ["goal_kick_id", "possession_team_name", "period",
-                    "obv_remaining", "predicted_obv", "residual"]
+                    "prog_value_20", "predicted_progression", "residual"]
     st.dataframe(
         mf_pred[display_cols].sort_values("residual", ascending=False).reset_index(drop=True),
         use_container_width=True,

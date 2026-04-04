@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
 import streamlit.components.v1 as components
@@ -28,11 +29,11 @@ period_filter = st.sidebar.selectbox("Period", ["Both", "1", "2"])
 
 final_third_only = st.sidebar.checkbox("Final third only")
 
-min_obv = float(meta["obv_total_seq"].min())
-max_obv = float(meta["obv_total_seq"].max())
-obv_threshold = st.sidebar.slider(
-    "Min OBV total", min_value=round(min_obv, 2), max_value=round(max_obv, 2),
-    value=round(min_obv, 2), step=0.01,
+min_prog = float(meta["prog_value_20"].min()) if "prog_value_20" in meta.columns else 0.0
+max_prog = float(meta["prog_value_20"].max()) if "prog_value_20" in meta.columns else 1.0
+prog_threshold = st.sidebar.slider(
+    "Min Progression Value", min_value=round(min_prog, 3), max_value=round(max_prog, 3),
+    value=round(min_prog, 3), step=0.001,
 )
 
 # Apply filters
@@ -43,7 +44,8 @@ if period_filter != "Both":
     filtered = filtered[filtered["period"] == int(period_filter)]
 if final_third_only:
     filtered = filtered[filtered["final_third_entry"] == True]
-filtered = filtered[filtered["obv_total_seq"] >= obv_threshold]
+if "prog_value_20" in filtered.columns:
+    filtered = filtered[filtered["prog_value_20"].fillna(min_prog) >= prog_threshold]
 
 st.sidebar.caption(f"{len(filtered):,} sequences match")
 
@@ -54,17 +56,20 @@ if filtered.empty:
 # ── Sequence selector ──────────────────────────────────────────────────────────
 def seq_label(row):
     opponent = row["away_team"] if row["possession_team_name"] == row["home_team"] else row["home_team"]
+    prog_val = row.get("prog_value_20", float("nan"))
+    prog_str = f"{prog_val:.4f}" if not pd.isna(prog_val) else "N/A"
     return (
         f"#{int(row['goal_kick_id'])} — {row['possession_team_name']} vs {opponent} "
-        f"| OBV: {row['obv_total_seq']:.4f}"
+        f"| Progression: {prog_str}"
     )
 
 filtered = filtered.copy()
 filtered["_label"] = filtered.apply(seq_label, axis=1)
 label_to_id = dict(zip(filtered["_label"], filtered["goal_kick_id"]))
 
-# Default to highest OBV sequence
-default_label = filtered.sort_values("obv_total_seq", ascending=False).iloc[0]["_label"]
+# Default to highest progression value sequence
+sort_col = "prog_value_20" if "prog_value_20" in filtered.columns else "obv_total_seq"
+default_label = filtered.sort_values(sort_col, ascending=False).iloc[0]["_label"]
 default_idx   = list(label_to_id.keys()).index(default_label)
 
 selected_label = st.selectbox("Select a goal kick sequence", list(label_to_id.keys()), index=default_idx)
@@ -73,7 +78,8 @@ selected_meta  = filtered[filtered["goal_kick_id"] == selected_id].iloc[0]
 
 # ── Summary metrics ────────────────────────────────────────────────────────────
 c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("OBV Total",           f"{selected_meta['obv_total_seq']:.4f}")
+prog_display = selected_meta.get("prog_value_20", float("nan"))
+c1.metric("Progression Value", f"{prog_display:.4f}" if not pd.isna(prog_display) else "N/A")
 c2.metric("Progressive Passes",  int(selected_meta["n_progressive_passes"]))
 c3.metric("Progressive Carries", int(selected_meta["n_progressive_carries"]))
 c4.metric("Final Third",         "Yes" if selected_meta["final_third_entry"] else "No")
@@ -106,7 +112,7 @@ st.markdown("---")
 
 # ── Animation ─────────────────────────────────────────────────────────────────
 st.subheader("Build-up Animation (first 80%)")
-st.caption("Two-panel: pitch tracking (left) + cumulative OBV chart (right). Animates up to the 80% mark. Generation takes ~5–15 seconds.")
+st.caption("Two-panel: pitch tracking (left) + cumulative OBV chart (right). Animates up to the 80% mark. Generation takes ~5–15 seconds. OBV shown in animation is the raw StatsBomb metric.")
 
 n_frames    = seq_df["frame"].nunique()
 n_frames_80 = max(1, int(n_frames * 0.8))
@@ -123,10 +129,10 @@ if anim_key in st.session_state:
 st.markdown("---")
 
 # ── What-if prediction buttons ────────────────────────────────────────────────
-st.subheader("What happens next? Predict the remaining OBV")
+st.subheader("What happens next? Predict the Sequence Progression Value")
 st.caption(
     "At the 80% mark of this sequence, choose an action type. "
-    "The model predicts how much OBV the team accumulates in the final 20%."
+    "The model predicts the progression value the team generates in the final 20%."
 )
 
 mf     = load_model_features()
@@ -141,30 +147,41 @@ else:
     actual_action = base_row.get("action_type", "Unknown")
     base_pred     = predict_single(base_row, bundle)["predicted"]
 
-    ACTION_BUTTONS = [
-        ("Pass",          "Pass"),
-        ("Carry",         "Carry"),
-        ("Ball Receipt*", "Ball Receipt"),
-        ("Duel",          "Duel"),
-        ("Pressure",      "Pressure"),
-        ("Ball Recovery", "Ball Recovery"),
-        ("Clearance",     "Clearance"),
-        ("Shot",          "Shot"),
+    # Possession team actions (action_team_poss=1) and defending team actions (action_team_poss=0)
+    POSS_BUTTONS = [
+        ("Pass",          "Pass",          1),
+        ("Carry",         "Carry",         1),
+        ("Ball Receipt*", "Ball Receipt",  1),
+        ("Duel",          "Duel",          1),
+        ("Ball Recovery", "Ball Recovery", 1),
+        ("Shot",          "Shot",          1),
     ]
+    DEF_BUTTONS = [
+        ("Pressure",      "Pressure",      0),
+        ("Clearance",     "Clearance",     0),
+    ]
+    ACTION_BUTTONS = POSS_BUTTONS + DEF_BUTTONS
 
     st.markdown(f"**Actual action in this sequence:** {actual_action}")
 
-    # Precompute all predictions so results display without a second rerun
+    # Precompute all predictions with correct action_team_poss per button
     all_predictions = {}
-    for action, _ in ACTION_BUTTONS:
+    for action, _, team_poss in ACTION_BUTTONS:
         row = base_row.copy()
+        row["action_team_poss"] = team_poss
         row["action_type"] = action
         all_predictions[action] = predict_single(row, bundle)["predicted"]
 
     # Show buttons — selected action stored in session_state
     btn_key = f"selected_action_{selected_id}"
-    cols = st.columns(len(ACTION_BUTTONS))
-    for col, (action, label) in zip(cols, ACTION_BUTTONS):
+    st.markdown("**Possession team actions:**")
+    poss_cols = st.columns(len(POSS_BUTTONS))
+    for col, (action, label, _) in zip(poss_cols, POSS_BUTTONS):
+        if col.button(label, key=f"action_{selected_id}_{action}"):
+            st.session_state[btn_key] = action
+    st.markdown("**Defending team actions:**")
+    def_cols = st.columns(len(DEF_BUTTONS))
+    for col, (action, label, _) in zip(def_cols, DEF_BUTTONS):
         if col.button(label, key=f"action_{selected_id}_{action}"):
             st.session_state[btn_key] = action
 
@@ -173,40 +190,42 @@ else:
     if selected_action:
         predicted = all_predictions[selected_action]
         delta     = predicted - base_pred
-        actual    = base_row["obv_remaining"]
 
         st.markdown("---")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Selected Action", selected_action)
-        c2.metric("Predicted OBV (final 20%)", f"{predicted:+.4f}",
-                  delta=f"{delta:+.4f} vs actual action")
-        c3.metric("True OBV Remaining", f"{actual:+.4f}")
+        c1, c2 = st.columns(2)
+        c1.metric("Selected Action", selected_action,
+                  help="Predicted progression value for this action type at the 80% mark")
+        c2.metric("Predicted Progression Value", f"{predicted:+.4f}",
+                  delta=f"{delta:+.4f} vs actual action ({actual_action})")
 
-        # Bar chart comparing all action predictions
+        # Two-bar chart: actual action (as played) vs selected possession team action
         import plotly.graph_objects as go
-        actions   = [label for _, label in ACTION_BUTTONS]
-        act_keys  = [action for action, _ in ACTION_BUTTONS]
-        pred_vals = [all_predictions[a] for a in act_keys]
-        colors    = [
-            "#ffbe0b" if a == selected_action else
-            ("#3a86ff" if v >= 0 else "#ff006e")
-            for a, v in zip(act_keys, pred_vals)
-        ]
+
+        actual_label = f"{actual_action}\n(actual)"
+        if selected_action == actual_action:
+            bar_labels = [actual_label]
+            bar_vals   = [base_pred]
+            bar_colors = ["#ffbe0b"]
+        else:
+            bar_labels = [actual_label, selected_action]
+            bar_vals   = [base_pred, predicted]
+            bar_colors = ["#3a86ff", "#ffbe0b"]
 
         fig = go.Figure(go.Bar(
-            x=actions, y=pred_vals,
-            marker_color=colors,
-            text=[f"{v:+.4f}" for v in pred_vals],
+            x=bar_labels,
+            y=bar_vals,
+            marker_color=bar_colors,
+            text=[f"{v:+.4f}" for v in bar_vals],
             textposition="outside",
+            width=0.3,
         ))
-        fig.add_hline(y=actual, line_dash="dash", line_color="white",
-                      annotation_text=f"True: {actual:+.4f}", annotation_font_color="white")
         fig.update_layout(
-            title="Predicted OBV by Action Type at 80% Mark",
-            yaxis_title="Predicted OBV (final 20%)",
+            title="Predicted Progression Value — Actual Action vs Selected Action",
+            yaxis_title="Predicted Progression Value",
             paper_bgcolor="#1a1a2e", plot_bgcolor="#12122a",
             font_color="white", title_font_color="white",
             height=350, margin=dict(t=50, b=20),
+            xaxis=dict(tickfont=dict(size=13)),
         )
         st.plotly_chart(fig, use_container_width=True)
 

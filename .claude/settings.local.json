@@ -27,7 +27,19 @@
       "Bash(where python3:*)",
       "Bash(ls /usr/bin/python*)",
       "Bash(ls /usr/local/bin/python*)",
-      "Bash(xargs wc:*)"
+      "Bash(xargs wc:*)",
+      "Bash(py -c ':*)",
+      "Bash(py data_prep/enrich_merged_with_shot_outcomes.py)",
+      "Bash(py feature_engineering/06_vaep_build_actions.py)",
+      "Bash(py 06_vaep_build_actions.py)",
+      "Bash(py 07_vaep_train_classifiers.py)",
+      "Bash(pip install:*)",
+      "Bash(py 08_score_actions.py)",
+      "Bash(py 09_sequence_progression_features.py)",
+      "Bash(py extract_80_20_features.py)",
+      "Bash(jupyter nbconvert:*)",
+      "Bash(python 09_sequence_progression_features.py)",
+      "Bash(python3 09_sequence_progression_features.py)"
     ]
   }
 }

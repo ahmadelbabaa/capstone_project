@@ -22,9 +22,10 @@ N_NEAREST       = 3
 PRESSURE_RADIUS = 5.0
 FINAL_THIRD_X   = 80.0   # StatsBomb x
 
-PROJECT_ROOT   = Path(__file__).resolve().parent.parent
-INPUT_FILE     = PROJECT_ROOT / "data" / "feature_engineering" / "goal_kick_sequences.parquet"
-OUTPUT_FILE    = PROJECT_ROOT / "data" / "feature_engineering" / "model_features_80_20.parquet"
+PROJECT_ROOT       = Path(__file__).resolve().parent.parent
+INPUT_FILE         = PROJECT_ROOT / "data" / "feature_engineering" / "goal_kick_sequences.parquet"
+PROG_FEATURES_FILE = PROJECT_ROOT / "data" / "feature_engineering" / "sequence_progression_features.parquet"
+OUTPUT_FILE        = PROJECT_ROOT / "data" / "feature_engineering" / "model_features_80_20.parquet"
 
 print("Loading sequences...")
 seqs = pd.read_parquet(INPUT_FILE)
@@ -181,7 +182,7 @@ last_event_80 = (
     .groupby("goal_kick_id")
     .last()
     [["event_type", "event_location_x", "event_location_y",
-      "pass_end_x", "carry_end_x"]]
+      "pass_end_x", "carry_end_x", "event_team_name", "possession_team_name"]]
 )
 last_event_80["action_type"] = last_event_80["event_type"]
 last_event_80["action_x"]    = last_event_80["event_location_x"]
@@ -197,7 +198,13 @@ last_event_80["action_progressive"] = np.where(
     )
 )
 
-action_feats = last_event_80[["action_type", "action_x", "action_y", "action_progressive"]]
+# 1 = action by possession team, 0 = action by defending team
+last_event_80["action_team_poss"] = (
+    last_event_80["event_team_name"] == last_event_80["possession_team_name"]
+).astype(int)
+
+action_feats = last_event_80[["action_type", "action_x", "action_y",
+                               "action_progressive", "action_team_poss"]]
 
 # ── Context ───────────────────────────────────────────────────────────────────
 context = (
@@ -230,6 +237,19 @@ model_df = (
 # Fill progression count nulls with 0 (sequences with no passes/carries)
 for col in ["n_prog_passes_80", "n_prog_carries_80", "final_third_80"]:
     model_df[col] = model_df[col].fillna(0).astype(int)
+
+# ── Join sequence_progression_value (custom possession value metric) ──────────
+prog_feats = pd.read_parquet(PROG_FEATURES_FILE)[
+    ["goal_kick_id", "sequence_progression_value",
+     "mean_action_prog_value", "max_action_prog_value", "n_prog_actions",
+     "prog_value_80", "prog_value_20"]
+]
+model_df = model_df.merge(prog_feats, on="goal_kick_id", how="left")
+# Sequences with no on-ball actions (Ball Receipt only) → fill with 0
+for col in ["sequence_progression_value", "mean_action_prog_value",
+            "max_action_prog_value", "n_prog_actions",
+            "prog_value_80", "prog_value_20"]:
+    model_df[col] = model_df[col].fillna(0)
 
 print()
 print("-- Feature table summary --------------------------------------------------")

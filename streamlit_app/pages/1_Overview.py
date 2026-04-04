@@ -30,18 +30,20 @@ col1.metric("Sequences", f"{len(gk):,}")
 col2.metric("In Model", f"{len(mf):,}")
 col3.metric("Matches", "376")
 col4.metric("Teams", str(gk["possession_team_name"].nunique()))
-col5.metric("R² (test)", f"{results['Ridge Regression']['R2']:.3f}")
-col6.metric("RMSE", f"{results['Ridge Regression']['RMSE']:.4f}")
-col7.metric("MAE", f"{results['Ridge Regression']['MAE']:.4f}")
-col8.metric("CV R²", f"{results['Ridge Regression']['CV_R2']:.3f}")
+best_name = bundle.get("model_name", "Gradient Boosting")
+col5.metric("R² (test)", f"{results[best_name]['R2']:.3f}")
+col6.metric("RMSE", f"{results[best_name]['RMSE']:.4f}")
+col7.metric("MAE", f"{results[best_name]['MAE']:.4f}")
+col8.metric("CV R²", f"{results[best_name]['CV_R2']:.3f}")
 
 st.markdown("---")
 st.markdown(
-    "The model uses Ridge Regression to predict how much **On-Ball Value (OBV)** "
-    "a team will accumulate in the **final 20%** of a goal kick build-up sequence, "
-    "based on features from the first 80%: OBV momentum, defensive pressure shape, "
+    f"The model uses **{best_name}** to predict the **Sequence Progression Value** "
+    "a team generates in the **final 20%** of a goal kick build-up sequence, "
+    "based on features from the first 80%: defensive pressure shape, "
     "ball progression, and match context. "
-    "OBV quantifies the change in goal probability after each on-ball action."
+    "Sequence Progression Value is a custom metric inspired by VAEP, measuring "
+    "how much each action shifts the probability of scoring vs. conceding."
 )
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
@@ -53,12 +55,12 @@ with tab1:
 
     with c1:
         fig = px.histogram(
-            gk, x="obv_total_seq", nbins=60,
-            title="Distribution of Goal Kick Sequence OBV",
-            labels={"obv_total_seq": "OBV (full sequence)"},
+            mf, x="prog_value_20", nbins=60,
+            title="Distribution of Sequence Progression Value",
+            labels={"prog_value_20": "Sequence Progression Value"},
             color_discrete_sequence=["#3a86ff"],
         )
-        mean_val = gk["obv_total_seq"].mean()
+        mean_val = mf["prog_value_20"].mean()
         fig.add_vline(x=mean_val, line_dash="dash", line_color="white",
                       annotation_text=f"Mean: {mean_val:.3f}", annotation_font_color="white")
         fig.update_layout(paper_bgcolor="#1a1a2e", plot_bgcolor="#12122a",
@@ -110,15 +112,15 @@ with tab2:
 
     with c1:
         fig = px.scatter(
-            mf_pred, x="obv_remaining", y="predicted_obv",
+            mf_pred, x="prog_value_20", y="predicted_progression",
             color="possession_team_name",
-            hover_data=["goal_kick_id", "obv_remaining", "predicted_obv", "residual"],
-            title="Actual vs Predicted OBV (test set context)",
-            labels={"obv_remaining": "Actual OBV", "predicted_obv": "Predicted OBV"},
+            hover_data=["goal_kick_id", "prog_value_20", "predicted_progression", "residual"],
+            title="Actual vs Predicted Progression Value",
+            labels={"prog_value_20": "Actual Progression Value", "predicted_progression": "Predicted Progression Value"},
             opacity=0.6,
         )
         # Perfect prediction diagonal
-        rng = [mf_pred["obv_remaining"].min(), mf_pred["obv_remaining"].max()]
+        rng = [mf_pred["prog_value_20"].min(), mf_pred["prog_value_20"].max()]
         fig.add_trace(go.Scatter(x=rng, y=rng, mode="lines",
                                   line=dict(color="grey", dash="dash"), name="Perfect"))
         fig.update_layout(paper_bgcolor="#1a1a2e", plot_bgcolor="#12122a",
@@ -146,17 +148,17 @@ with tab2:
                            font_color="white", title_font_color="white")
         st.plotly_chart(fig2, use_container_width=True)
 
-    feat_img = Path(__file__).resolve().parents[2] / "model" / "feature_importance_standardized.png"
+    feat_img = Path(__file__).resolve().parents[2] / "model" / "feature_importance_progression.png"
     if feat_img.exists():
-        st.subheader("Standardized Feature Coefficients")
+        st.subheader("Feature Importance (Ridge Coefficients)")
         st.image(str(feat_img), use_column_width=True)
     else:
-        st.info("Feature importance chart not found at model/feature_importance_standardized.png")
+        st.info("Feature importance chart not found at model/feature_importance_progression.png")
 
 # ── Tab 3: Model Comparison ────────────────────────────────────────────────────
 with tab3:
     st.subheader("Model Comparison — Ridge vs Random Forest vs Gradient Boosting")
-    st.caption("Ridge Regression was selected as the best model based on RMSE and cross-validation R².")
+    st.caption(f"**{best_name}** was selected as the best model based on RMSE and cross-validation R².")
 
     rows = []
     for model_name, metrics in results.items():

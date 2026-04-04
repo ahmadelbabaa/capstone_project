@@ -11,12 +11,10 @@ from sklearn.exceptions import InconsistentVersionWarning
 warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-MODEL_PATH   = PROJECT_ROOT / "model" / "best_model_standardized.pkl"
+MODEL_PATH   = PROJECT_ROOT / "model" / "best_model_progression.pkl"
 
 # Human-readable feature labels
 FEATURE_LABELS = {
-    "obv_for_80":             "OBV For (first 80%)",
-    "obv_against_80":         "OBV Against (first 80%)",
     "n_prog_passes_80":       "Progressive Passes",
     "n_prog_carries_80":      "Progressive Carries",
     "final_third_80":         "Final Third Entry",
@@ -32,6 +30,7 @@ FEATURE_LABELS = {
     "action_x":               "Action Location X",
     "action_y":               "Action Location Y",
     "action_progressive":     "Action Progressive",
+    "action_team_poss":       "Action by Possession Team",
     "period":                 "Match Period",
 }
 
@@ -80,19 +79,27 @@ def predict_single(row: pd.Series, bundle: dict) -> dict:
     """
     X_scaled = _encode_row(row, bundle)
     predicted = float(bundle["model"].predict(X_scaled)[0])
-    actual    = float(row["obv_remaining"]) if "obv_remaining" in row.index else float("nan")
+    actual    = float(row["prog_value_20"]) if "prog_value_20" in row.index else float("nan")
 
-    # Ridge: contribution of feature i = coef[i] * scaled_x[i]
-    contributions = pd.Series(
-        bundle["model"].coef_ * X_scaled[0],
-        index=bundle["feature_cols"],
-    )
+    model = bundle["model"]
+    feature_cols = bundle["feature_cols"]
+
+    # Use feature importances (works for tree-based models and Ridge)
+    if hasattr(model, "coef_"):
+        # Ridge: directional contribution = coef[i] * scaled_x[i]
+        contributions = pd.Series(model.coef_ * X_scaled[0], index=feature_cols)
+        is_directional = True
+    else:
+        # GBM / RF: use feature_importances_ (always positive)
+        contributions = pd.Series(model.feature_importances_, index=feature_cols)
+        is_directional = False
 
     return {
-        "predicted":           predicted,
-        "actual":              actual,
-        "residual":            actual - predicted,
+        "predicted":             predicted,
+        "actual":                actual,
+        "residual":              actual - predicted,
         "feature_contributions": contributions,
+        "is_directional":        is_directional,
     }
 
 
@@ -101,7 +108,7 @@ def predict_batch(_bundle_key, df: pd.DataFrame) -> pd.DataFrame:
     """
     Run predictions over the full model features DataFrame.
     _bundle_key is unused but forces Streamlit to re-cache if the model changes.
-    Returns df with added columns: predicted_obv, residual.
+    Returns df with added columns: predicted_progression, residual.
     """
     bundle = load_model()
     le     = bundle["label_encoder"]
@@ -129,6 +136,6 @@ def predict_batch(_bundle_key, df: pd.DataFrame) -> pd.DataFrame:
 
     X = X_df.values.astype(float)
     X_scaled = bundle["scaler"].transform(X)
-    result["predicted_obv"] = bundle["model"].predict(X_scaled)
-    result["residual"]      = result["obv_remaining"] - result["predicted_obv"]
+    result["predicted_progression"] = bundle["model"].predict(X_scaled)
+    result["residual"]              = result["prog_value_20"] - result["predicted_progression"]
     return result
