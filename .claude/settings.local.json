@@ -39,7 +39,21 @@
       "Bash(py extract_80_20_features.py)",
       "Bash(jupyter nbconvert:*)",
       "Bash(python 09_sequence_progression_features.py)",
-      "Bash(python3 09_sequence_progression_features.py)"
+      "Bash(python3 09_sequence_progression_features.py)",
+      "Bash(py -m jupyter nbconvert --to notebook --execute testing/test_progression_vs_obv_correlation.ipynb --output testing/test_progression_vs_obv_correlation.ipynb --ExecutePreprocessor.timeout=120)",
+      "Bash(py -m jupyter nbconvert --to notebook --execute \"testing/test_progression_vs_obv_correlation.ipynb\" --output \"test_progression_vs_obv_correlation.ipynb\" --output-dir \"testing\" --ExecutePreprocessor.timeout=120)",
+      "Bash(obv_total_net)",
+      "Bash(obv_total_seq)",
+      "Bash(sequence_progression_value)",
+      "Bash(py /tmp/patch_nb.py)",
+      "Bash(py \"C:/Users/User/AppData/Local/Temp/patch_nb2.py\")",
+      "Bash(py -m jupyter nbconvert --to notebook --execute \"testing/test_progression_vs_obv_correlation.ipynb\" --output \"test_progression_vs_obv_correlation.ipynb\" --output-dir \"testing\" --ExecutePreprocessor.timeout=300)",
+      "Bash(py \"C:/Users/User/AppData/Local/Temp/patch_nb3.py\")",
+      "Bash(py \"C:/Users/User/AppData/Local/Temp/fix_last_cell.py\")",
+      "Bash(py \"C:/Users/User/AppData/Local/Temp/fix_pred_cell.py\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\User\\AppData\\Local\\Temp"
     ]
   }
 }

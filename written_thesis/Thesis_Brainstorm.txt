@@ -1,0 +1,437 @@
+THESIS BRAINSTORMING: J1 LEAGUE GOAL KICK PRESSING ANALYSIS
+Bullet-point structure for each thesis section (Literature Review excluded — already complete)
+================================================================================
+
+
+================================================================================
+SECTION 1: ABSTRACT / EXECUTIVE SUMMARY
+================================================================================
+
+Purpose: A concise standalone summary. Reader should understand the full arc
+without reading anything else.
+
+KEY POINTS TO INCLUDE
+  - The specific problem: understanding and predicting the outcome of goal kick
+    build-up sequences in professional football (J1 League 2024)
+  - Why goal kicks specifically: structured, repeatable set-piece situations
+    where pressing strategy and build-up shape are clearly observable
+  - The data: StatsBomb 360 tracking + event data, 376 matches, ~5,500 goal
+    kick sequences
+  - The custom metric: Sequence Progression Value (VAEP-inspired) -- quantifies
+    how much each action shifts P(score) vs P(concede); aggregated into
+    prog_value_20 (last 20% of each sequence)
+  - The model: Random Forest predicting prog_value_20 from first-80%-of-sequence
+    features (CV R2=0.382)
+  - Main finding: pressing compactness, defensive line height, and early
+    progression in the 80% window are the strongest predictors of the final phase
+  - The Streamlit app: interactive explorer for coaches/analysts -- browse
+    sequences, animate pressing shape, run what-if predictions
+  - Broader implication: a replicable pipeline for quantifying pressing
+    effectiveness in any football dataset
+
+TONE / FRAMING TIPS
+  - Lead with the football problem, not the data science problem
+  - Quantify: 376 matches, 5,424 sequences, 18 features, CV R2=0.382
+  - Target ~200-250 words; one tight paragraph
+
+
+================================================================================
+SECTION 2: PROBLEM AND MOTIVATION
+================================================================================
+
+Purpose: Convince the reader this problem is worth solving. Ground it in
+football context, not just machine learning.
+
+2.1  FOOTBALL CONTEXT -- WHY GOAL KICKS MATTER
+  - Post-2019 rule change: goalkeeper can now receive the ball from a goal kick
+    anywhere on the pitch
+  - Teams now use goal kicks as structured build-up opportunities, not just
+    long balls
+  - This changed how pressing teams set up: high-press traps, mid-block zones,
+    staggered defensive lines
+  - Goal kicks account for ~14-15 per match; the outcome often sets the tempo
+    of a passage of play
+
+2.2  THE ANALYTICS GAP
+  - Most pressing research is at the action level (Robberechts et al.
+    "Measuring the effectiveness of pressing" -- in your literature review)
+  - Less work focuses on sequence-level build-up outcomes from a structured
+    restart
+  - StatsBomb 360 tracking data is relatively new -- quantifying defensive shape
+    (compactness, line height) during build-up is novel
+
+2.3  RESEARCH QUESTIONS -- MAKE THESE EXPLICIT
+  - Can we predict how much progression a goal kick sequence generates in its
+    final phase, given only what happened in the first 80%?
+  - Which defensive pressing features (shape, intensity, line position) most
+    strongly predict sequence outcome?
+  - What action types at the critical 80% transition point are associated with
+    high or low progression?
+
+2.4  WHY J1 LEAGUE?
+  - Full-season 360 tracking data for all 376 matches (rare -- most public
+    data is partial)
+  - Japanese professional football is tactically well-structured with clear
+    team identities
+  - Underrepresented in academic football analytics
+
+2.5  PRACTICAL MOTIVATION
+  - Coaching staff need tools to evaluate pressing effectiveness beyond
+    "press more/less"
+  - Club analysts need a way to quantify and compare sequences across matches
+  - The interactive app bridges the gap between statistical output and
+    usable analyst tool
+
+
+================================================================================
+SECTION 3: MAIN CONTRIBUTION
+================================================================================
+
+Purpose: State clearly what is new. This is not methodology -- it is the
+"so what."
+
+CONTRIBUTION 1: CUSTOM SEQUENCE PROGRESSION VALUE METRIC
+  - VAEP-inspired action valuation metric built from scratch -- no SPADL,
+    no socceraction library
+  - Built directly from StatsBomb events with a 3-action game state window
+    (a0, a1, a2)
+  - Two XGBoost binary classifiers for P(score) and P(concede), trained on
+    all 376 matches (~450,000 on-ball actions)
+  - Splits into prog_value_80 (feature) and prog_value_20 (target) to avoid
+    data leakage -- methodologically cleaner than using total OBV
+
+CONTRIBUTION 2: SEQUENCE-LEVEL PREDICTION MODEL USING TRACKING DATA
+  - Combines event-derived action features with tracking-derived pressing shape
+    features (compactness, line height, ball proximity)
+  - Novel framing: given what you can observe during the build-up, predict the
+    quality of the final phase
+  - Random Forest achieves CV R2=0.382 -- meaningfully better than the
+    StatsBomb OBV baseline (R2=0.177)
+
+CONTRIBUTION 3: PRESSING SHAPE QUANTIFICATION
+  - 6 defensive tracking features: compactness, line height (mean/max x),
+    line depth, ball proximity (avg/min), frames under pressure, forward speed
+  - These features operationalize coaching concepts ("compact block",
+    "high press") into numerical quantities
+
+CONTRIBUTION 4: INTERACTIVE DECISION-SUPPORT TOOL (STREAMLIT)
+  - End-to-end analyst tool: filter sequences, animated tracking, pitch
+    snapshots at kick/40%/80% marks, what-if predictions at the 80% transition
+  - What-if prediction: analyst selects an action type; model predicts
+    expected prog_value_20
+  - Feature importance per sequence: waterfall for Ridge, bar chart for
+    Random Forest
+
+CONTRIBUTION 5: REPLICABLE PIPELINE
+  - All steps are script-based and documented (feature_engineering/0X_*.py),
+    not locked in notebooks
+  - Can be replicated for any StatsBomb 360 dataset
+
+
+================================================================================
+SECTION 4: METHODOLOGY
+================================================================================
+
+Purpose: Explain how you built everything. Detailed enough to be reproducible.
+
+4.1  DATA DESCRIPTION
+  - StatsBomb Open 360 data -- J1 League 2024 full season
+  - Two data types: event data (on-ball actions) + tracking data (~25 Hz frames)
+  - 376 matches; ~5,500 goal kick sequences extracted
+  - Filtering: regular time only (periods 1 and 2); sequences with fewer than
+    10 frames excluded
+  - Join key between events and tracking: event_id / UUID
+
+4.2  GOAL KICK SEQUENCE EXTRACTION
+  - Definition: from the goal kick event until the possession changes (ball
+    out of play or opposition wins ball)
+  - Assign goal_kick_id; join tracking frames to events via skc_match_id +
+    event_id
+  - Result: ~5,500 sequences with 10 to several hundred frames each
+
+4.3  CUSTOM METRIC: SEQUENCE PROGRESSION VALUE
+
+  Phase 1 -- Action valuation (all data, all 376 matches)
+    - Feature engineering per on-ball action: 10 features (action type,
+      location, distance/angle to goal, score diff, time) + 2 lags = 30-column
+      game state vector
+    - Binary labels: scores=1 if same team scores within K=10 actions;
+      concedes=1 if opponent scores within K=10 actions
+    - XGBoost classifiers trained on all ~450,000 actions; no train/val split
+      (classifiers are a metric tool, not a predictive endpoint)
+    - Justify XGBoost: handles class imbalance via scale_pos_weight, fast on
+      tabular data, good calibration with binary:logistic objective
+    - VAEP formula:
+        V(a_i) = [P_score(S_i) - P_score(S_{i-1})]
+               - [P_concede(S_i) - P_concede(S_{i-1})]
+    - Include calibration curve plot as evidence of classifier quality
+
+  Phase 2 -- Sequence aggregation
+    - Filter to goal kick sequences only; assign in_80 flag per frame using
+      sorted unique frame count, cut at floor(n x 0.8)
+    - prog_value_80 = sum of action_prog_value in first 80% of frames
+      (possession team actions only)
+    - prog_value_20 = sum of action_prog_value in last 20% of frames
+      -- this is the MODEL TARGET
+    - Why separate: using total would make prog_value_80 a component of the
+      target (data leakage)
+
+4.4  FEATURE ENGINEERING (80% WINDOW)
+
+  Defensive shape features (from tracking data):
+    - Compactness (press_compactness_80): mean pairwise distance between all
+      defenders per frame, averaged across the 80% window
+    - Line height (press_height_mean_x_80, press_height_max_x_80): average and
+      maximum x-position of defending team per frame
+    - Line depth (def_line_depth_mean_x_80): mean x of deepest N=4 defenders
+      per frame
+    - Ball proximity (avg_def_ball_dist_80, min_def_ball_dist_80): mean/min
+      distance of nearest N=3 defenders to ball
+    - Frames under pressure (n_frames_pressure_80): frames where any defender
+      is within 5 metres of the ball
+    - Defensive forward speed (press_fwd_speed_80): mean dx/dt of defenders
+      (positive = pressing forward)
+
+  Progression features (from events):
+    - n_prog_passes_80, n_prog_carries_80: count of forward-moving
+      passes/carries in the 80% window
+    - final_third_80: binary -- did any pass/carry reach x > 80 in the
+      first 80%?
+    - prog_value_80: aggregate VAEP progression value in first 80%
+      (possession team only)
+
+  Action at the 80% transition point:
+    - action_type: event type of the last event at the 80% mark (Pass, Carry,
+      Shot, Pressure, Clearance, etc.)
+    - action_x, action_y: pitch location of the transition action
+    - action_progressive: binary (forward-moving action?)
+    - action_team_poss: binary (1 = possession team, 0 = defending team --
+      turnover signal)
+
+  Context features:
+    - period: match period (1 or 2)
+
+4.5  MODEL TRAINING AND EVALUATION
+  - Target: prog_value_20 (VAEP-derived progression in the last 20%)
+  - Three candidate models: Ridge Regression (linear baseline),
+    Random Forest (non-linear, robust), Gradient Boosting
+  - Hyperparameters:
+      Ridge:          alpha=1.0
+      Random Forest:  n_estimators=200, max_depth=6, min_samples_leaf=10
+      Gradient Boost: n_estimators=200, max_depth=4, learning_rate=0.05,
+                      min_samples_leaf=10
+  - StandardScaler before Ridge; tree models use unscaled features
+  - Evaluation: RMSE, MAE, R2 (held-out test set) + 5-fold cross-validated R2
+  - Train/test split: random 80/20 at the sequence level
+  - Best model: Random Forest (CV R2=0.382, test R2=0.349)
+
+4.6  INTERACTIVE APPLICATION
+  - Built with Streamlit; three pages: Overview, Sequence Explorer,
+    Model Predictions
+  - Key features: team/period/progression filter, animated pitch tracking,
+    3 pitch snapshots (at kick / 40% / 80% marks)
+  - What-if action buttons: possession team (Pass, Carry, Ball Receipt, Duel,
+    Ball Recovery, Shot) and defending team (Pressure, Clearance) in separate
+    rows
+  - Feature importance: waterfall chart for Ridge, horizontal bar chart for
+    Random Forest; radar chart of z-scores for top 8 features
+
+
+================================================================================
+SECTION 5: TECHNICAL CONTENT AND KEY RESULTS
+================================================================================
+
+Purpose: Show results with evidence. Story: metric validation -> model
+comparison -> feature importance -> example sequences.
+
+5.1  METRIC VALIDATION
+  - Calibration curve: does P(score) predict actual goal rate?
+    (reference vaep_calibration.png)
+  - Sanity check by action type: mean P(score) should be highest for shots
+    near goal, lowest for clearances
+  - Correlation between custom sequence_progression_value and StatsBomb
+    obv_remaining: expect moderate positive (r ~0.2-0.6) -- confirms the
+    metric captures similar signal but is not identical
+  - Distribution of prog_value_20: most sequences generate near-zero
+    progression; top decile drives most positive value (show histogram)
+
+5.2  MODEL PERFORMANCE COMPARISON
+  - Table: Ridge vs RF vs GBM across RMSE, MAE, R2, CV R2 (5-fold)
+  - Best model: Random Forest -- CV R2=0.382, test R2=0.349
+  - Improvement vs OBV baseline: R2 from 0.177 (Ridge on OBV) to 0.349
+    (RF on custom metric) -- discuss why the custom metric is more predictable
+  - Residual distribution: roughly symmetric around 0; slight underprediction
+    for very high-progression sequences
+  - Actual vs predicted scatter plot: tight cluster near zero, more spread at
+    extremes -- include figure
+
+5.3  FEATURE IMPORTANCE
+  - Top features from Random Forest feature_importances_
+    (feature_importance_progression.png):
+      > prog_value_80: strongest predictor -- sequences with quality early
+        build-up tend to maintain quality
+      > action_x, action_y: location at the 80% mark -- deeper sequences
+        less likely to progress further
+      > def_line_depth_mean_x_80 / press_height_mean_x_80: defensive line
+        positioning affects space in the final phase
+      > press_compactness_80: compact defensive blocks suppress late-sequence
+        progression
+      > action_team_poss: defending team action at the 80% mark (turnover
+        signal) is strongly predictive
+  - Discuss direction of effects: which features increase vs. decrease
+    expected progression?
+  - Include feature importance bar chart as a figure
+
+5.4  SEQUENCE-LEVEL FINDINGS
+  - High-progression sequences: typically -- final third entry in 80%, low
+    compactness (stretched defense), high defensive line (space behind)
+  - Low-progression sequences: high compactness, deep defensive line, early
+    pressure near ball, transition action by defending team
+  - Use Sequence Explorer screenshots as figures (pitch snapshots +
+    animation stills)
+
+5.5  WHAT-IF ANALYSIS EXAMPLE
+  - Walk through a specific sequence: "If the possession team had carried at
+    the 80% mark instead of passing, predicted prog_value_20 increases by X"
+  - Show bar chart output from the app as a figure
+  - Demonstrates practical value: analyst can test tactical hypotheses without
+    re-running the model manually
+
+
+================================================================================
+SECTION 6: LIMITATIONS AND ROBUSTNESS
+================================================================================
+
+Purpose: Demonstrate critical thinking. Show you understand what the model
+cannot do.
+
+LIMITATION 1: SINGLE-SEASON, SINGLE-LEAGUE DATA
+  - 376 matches from J1 League 2024 only -- patterns may not generalize to
+    other leagues
+  - Premier League or Bundesliga teams press differently and have different
+    physical profiles
+  - Re-training on different leagues to test generalizability is left as
+    future work
+
+LIMITATION 2: THE 80% TEMPORAL SPLIT IS HEURISTIC
+  - The choice of 80% as the observation window is not mathematically
+    justified -- it is an intuitive choice
+  - Robustness check: does model performance degrade significantly at a 70%
+    or 90% split?
+  - Very short sequences have proportionally less data in each window
+
+LIMITATION 3: CLASSIFIERS TRAINED ON ALL DATA (NO HOLD-OUT)
+  - P(score)/P(concede) classifiers trained on the full dataset, then applied
+    to that same dataset to generate action values
+  - Standard VAEP practice (classifiers are a measurement tool, not a
+    predictive endpoint) -- worth acknowledging the distinction clearly
+
+LIMITATION 4: GOAL KICK SEQUENCE BOUNDARY DEFINITION
+  - Sequence end defined by possession change, but the exact event can be
+    ambiguous in StatsBomb data
+  - May introduce noise at sequence boundaries -- some sequences may be
+    slightly truncated or extended
+
+LIMITATION 5: NO GAME-STATE CONTEXT IN THE MAIN MODEL
+  - The model does not include score line, time of match, or match importance
+  - A team 2-0 down in the 85th minute will take more risks regardless of
+    pressing shape
+  - period is a rough proxy for time pressure but insufficient
+
+LIMITATION 6: STATSBOMB 360 TRACKING QUALITY
+  - StatsBomb 360 uses a freeze-frame model -- positions at specific moments,
+    not continuous optical tracking (unlike Tracab)
+  - Limits frequency-based analysis; full tracking would enable more granular
+    features
+  - Player ID consistency across frames may have edge cases
+
+ROBUSTNESS CONSIDERATIONS
+  - 5-fold CV is the primary robustness check -- stable CV R2 across folds
+    is reassuring
+  - Sensitivity to hyperparameters: discuss how RF max_depth and
+    min_samples_leaf affect overfitting vs. underfitting
+  - Sensitivity to K=10 in label generation: would K=8 or K=15 meaningfully
+    change results?
+
+
+================================================================================
+SECTION 7: CONCLUSIONS, IMPLICATIONS, AND REAL-WORLD APPLICATION
+================================================================================
+
+Purpose: So what? What did we learn, and who benefits?
+
+7.1  SUMMARY OF FINDINGS
+  - Custom metric is more predictable than OBV (R2 0.349 vs 0.177) --
+    a domain-specific metric aligned to the task outperforms a general one
+  - Pressing shape in the first 80% (compactness, line height) meaningfully
+    predicts final-phase progression quality
+  - The action at the 80% transition point (type + team) carries strong
+    predictive signal -- this is the critical moment where the sequence "tips"
+  - prog_value_80 being the top feature confirms that sequences with quality
+    early build-up tend to maintain quality, not random fluctuation
+
+7.2  IMPLICATIONS FOR FOOTBALL ANALYSIS
+  - Possession teams (goal kick takers): focus early-sequence actions on
+    establishing clean ball progression -- not just clearing the defensive
+    third
+  - Pressing teams: compact blocks with a high line suppress progression;
+    forward speed of defenders matters -- passive compactness is less effective
+    than active pressure
+  - Analysts: the 80% transition moment is diagnostically important -- what
+    action type and location characterizes the end of the build-up phase is
+    where coaching intervention should focus
+
+7.3  REAL-WORLD APPLICATION -- THE STREAMLIT APP
+  - Target users: coaching analysts, sports data scientists, video analysts
+  - Use case 1 -- Pre-match preparation: find all goal kick sequences against
+    a specific opponent; understand their pressing triggers and build-up shape
+  - Use case 2 -- Post-match review: identify which sequences generated
+    positive/negative progression and understand the defensive shape that
+    enabled or suppressed it
+  - Use case 3 -- Tactical hypothesis testing: "what if we encouraged our
+    midfielder to carry more at the 80% mark?" -> what-if prediction
+  - Designed to be used without ML expertise -- predictions and visualizations
+    explain themselves
+
+7.4  FUTURE WORK
+  - Extend to other restart types: corner kicks, throw-ins in the defensive
+    third
+  - Test on other leagues/seasons to assess generalizability
+  - Add game-state context (score line, minute) to the main predictive model
+  - Incorporate formation detection from tracking data as a feature (e.g.,
+    defensive shape cluster label)
+  - Replace Random Forest with a sequence-aware architecture (LSTM, GRU) that
+    processes frame-level tracking directly -- current model uses aggregated
+    scalar features only
+  - Explore opponent-specific pressing profiles: which teams' pressing patterns
+    are most and least predictable by the model?
+
+7.5  CLOSING STATEMENT
+  - Data-driven tools can operationalize tactical concepts that coaches have
+    always known qualitatively -- now with numerical evidence, cross-sequence
+    comparison, and interactive exploration
+  - This project demonstrates that custom domain-specific metrics outperform
+    general ones when the task is well-defined
+  - Modern tracking data enables analysis at a granularity previously
+    impossible -- an early example of what full tracking + custom metrics
+    can offer professional clubs
+
+
+================================================================================
+NOTES ON WRITING STYLE AND STRUCTURE
+================================================================================
+
+  - Lead each section with a brief orientation sentence
+    ("This section describes...")
+  - Use numbered sub-sections (4.1, 4.2) for navigability in a long document
+  - Every claim referencing results should have a number attached
+    (R2, RMSE, counts)
+  - Include figures: app screenshot, feature importance chart, actual vs
+    predicted scatter, calibration curve, residual distribution, pitch snapshots
+  - Methodology: detailed enough to be reproducible -- include hyperparameters,
+    feature names, split ratios
+  - Results: tell a story -- metric validation -> model comparison ->
+    feature importance -> example sequences
+  - Limitations: write positively ("Future work could address...") not
+    defensively
+  - Keep conclusion tight -- restate contributions, not methods

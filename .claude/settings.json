@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/User/**)",
+      "Bash(python -c \"import docx; print\\('python-docx available'\\)\")",
+      "Bash(python3 -c \"import docx; print\\('python-docx available'\\)\")",
+      "Read(//mnt/c/Users/User/AppData/Local/Programs/**)",
+      "Bash(cmd.exe /c \"where python\")",
+      "Bash(py -c \"import docx; print\\('ok'\\)\")",
+      "Bash(py -m pip install python-docx -q)",
+      "Bash(py -c ':*)",
+      "Bash(py -c \"import event_synchronization; print\\(event_synchronization.__file__\\)\")",
+      "Bash(py -c \"import event_synchronization.events_utils; print\\(event_synchronization.events_utils.__file__\\)\")",
+      "Bash(py -c \"from event_synchronization.events_utils import players_mapping_manager; print\\(players_mapping_manager.__file__\\)\")",
+      "Bash(py -c \"import skillcorner; print\\(skillcorner.__file__\\)\")",
+      "Bash(py -c \"from event_synchronization.events_utils.players_mapping_manager import SkcPlayersMapping\")"
+    ]
+  }
+}
