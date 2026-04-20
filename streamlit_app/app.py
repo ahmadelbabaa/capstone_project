@@ -28,9 +28,6 @@ st.markdown(
     to predict **build-up quality** (measured by a custom **Sequence Progression Value** metric
     inspired by VAEP) in the **final 20%** of goal kick sequences, using tracking and event data from the first 80%.
 
-    **Navigate using the sidebar:**
-    - **Overview** — Dataset statistics and model performance
-    - **Sequence Explorer** — Browse goal kick sequences with pitch visualisations
-    - **Model Predictions** — Interactive model demo with feature contributions
+    **Navigate using the sidebar to open the Sequence Explorer.**
     """
 )

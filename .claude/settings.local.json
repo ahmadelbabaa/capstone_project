@@ -53,7 +53,8 @@
       "Bash(py \"C:/Users/User/AppData/Local/Temp/fix_pred_cell.py\")"
     ],
     "additionalDirectories": [
-      "C:\\Users\\User\\AppData\\Local\\Temp"
+      "C:\\Users\\User\\AppData\\Local\\Temp",
+      "c:\\Users\\User\\OneDrive\\Capstone Project\\streamlit_app\\pages"
     ]
   }
 }
