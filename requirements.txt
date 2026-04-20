@@ -5,3 +5,6 @@ requests==2.32.5
 pyarrow
 mplsoccer
 skillcorner
+scikit-learn>=1.0
+streamlit>=1.35.0
+plotly>=5.20.0

@@ -6,9 +6,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import streamlit as st
-from sklearn.exceptions import InconsistentVersionWarning
-
-warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+try:
+    from sklearn.exceptions import InconsistentVersionWarning
+    warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+except ImportError:
+    pass
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODEL_PATH   = PROJECT_ROOT / "model" / "best_model_progression.pkl"
